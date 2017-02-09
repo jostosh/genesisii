@@ -6,6 +6,8 @@ from tensorflow.examples.tutorials.mnist import input_data
 import os
 from adam import AdamOptimizer
 from eve import EveOptimizer
+import numpy as np
+from tensorboardutil import make_summary_from_python_var
 
 
 def load_data(name):
@@ -51,6 +53,9 @@ if __name__ == "__main__":
 
     train_step = tf.group(*optimizer.get_updates(var_list, cross_entropy))
 
+    if hp.optimizer == 'eve':
+        tf.summary.scalar('d', optimizer.d)
+
     with tf.name_scope('accuracy'):
         with tf.name_scope('correct_prediction'):
             correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(y_, 1))
@@ -80,12 +85,13 @@ if __name__ == "__main__":
 
     for i in range(hp.max_steps):
         if i % 10 == 0:  # Record summaries and test-set accuracy
-            pass
-            #for i in range(100):
-            #    xs, ys = data.test.next_batch(100)
-            #    summary, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
-            #test_writer.add_summary(summary, i)
-            #print('Accuracy at step %s: %s' % (i, acc))
+            accuracies = []
+            for j in range(100):
+                xs, ys = data.test.next_batch(100)
+                summary, acc = sess.run([merged, accuracy], feed_dict={X: xs, y_:ys, K.learning_phase(): 0})
+                accuracies.append(acc)
+            print("Mean accuracy: {}".format(np.mean(accuracies)))
+            test_writer.add_summary(make_summary_from_python_var('Accuracy', np.mean(accuracies, dtype='float')),  i)
         else:  # Record train set summaries, and train
             if i % 100 == 99:  # Record execution stats
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
