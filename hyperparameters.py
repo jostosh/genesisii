@@ -1,9 +1,12 @@
 import argparse
+from models.models import MODEL_FACTORIES
 
 config1 = {
     'optimizer': 'adam',
     'data': 'mnist',
-    'lr': 0.001
+    'lr': 0.001,
+    'model': 'cnn',
+    'max_steps': 1000
 }
 
 
@@ -34,3 +37,5 @@ class HyperParameters():
         self.optimizer = args.optimizer
         self.data = args.data
         self.lr = args.lr
+        self.model = MODEL_FACTORIES[args.model]
+        self.max_steps = args.max_steps
