@@ -6,21 +6,73 @@ from tensorflow.examples.tutorials.mnist import input_data
 import os
 from adam import AdamOptimizer
 from eve import EveOptimizer
+from genesis import GenesisOptimizer
 import numpy as np
 from tensorboardutil import make_summary_from_python_var
+from keras.utils import np_utils
+from keras.datasets import mnist, cifar10, cifar100, imdb, reuters
+import tflearn.datasets.oxflower17 as oxflower17
+import scipy.misc as misc
+from keras.preprocessing import sequence
 
 
-def load_data(name):
+def pre_process_image(hp):
+    if hp.data == 'oxflower':
+        X_data, y_data = DATASET_INFO[hp.data]["loader"](resize_pics=(64, 64))
+        X_data = np.asarray([misc.imresize(im, (64, 64)) for im in X_data])
+    else:
+        (X_data, y_data), _ = DATASET_INFO[hp.data]["loader"]()
+    if hp.n_samples == 0:
+        hp.n_samples = X_data.shape[0]
 
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
-    mnist = input_data.read_data_sets(data_dir,
-                                      one_hot=True)
+    p = np.random.permutation(X_data.shape[0])
+    X_data, y_data = X_data[p][:hp.n_samples], y_data[p][:hp.n_samples]
+    X_data = X_data.astype("float32") / 255.
+    if X_data.ndim == 3:
+        X_data = X_data[:, :, :, np.newaxis]
 
-    with tf.name_scope('input'):
-        x = tf.placeholder(tf.float32, [None, 784], name='x-input')
-        y_ = tf.placeholder(tf.float32, [None, 10], name='y-input')
+    #y_data = np_utils.to_categorical(y_data, DATASET_INFO[hp.data]["nb_classes"])
+    return X_data, y_data
 
-    return mnist, x, y_
+
+
+def pre_process_text(hp):
+    (X_train, y_train), _ = DATASET_INFO[hp.data]["loader"](nb_words=hp.n_vocab)
+    if hp.n_samples is not None:
+        X_train, y_train = X_train[:hp.n_samples], y_train[:hp.n_samples]
+    X_train = sequence.pad_sequences(X_train, maxlen=hp.max_len)
+    y_train = np.array(y_train)
+    #y_train = np_utils.to_categorical(y_train, DATASET_INFO[hp.data]["nb_classes"])
+    return X_train, y_train
+
+
+
+DATASET_INFO = {
+    "mnist": {"loader": mnist.load_data, "nb_classes": 10, "preprocess": pre_process_image},
+    "cifar10": {"loader": cifar10.load_data, "nb_classes": 10, "preprocess": pre_process_image},
+    "cifar100": {"loader": cifar100.load_data, "nb_classes": 100, "preprocess": pre_process_image},
+    "oxflower": {"loader": oxflower17.load_data, "nb_classes": 17, "preprocess": pre_process_image},
+    "imdb": {"loader": imdb.load_data, "nb_classes": 2, "preprocess": pre_process_text},
+    "reuters": {"loader": reuters.load_data, "nb_classes": 46, "preprocess": pre_process_text}
+}
+
+
+def create_train_test(data, labels, cross_val_iter, k):
+    test_length = data.shape[0] // k
+
+    test_indices = range(cross_val_iter * test_length, (cross_val_iter + 1) * test_length)
+
+    test_data = data[test_indices]
+    test_labels = labels[test_indices]
+
+    train_mask = np.ones(data.shape[0]).astype(np.bool)
+    train_mask[test_indices] = False
+
+    train_data = data[train_mask]
+    train_labels = labels[train_mask]
+
+    return train_data, train_labels, test_data, test_labels
+
 
 if __name__ == "__main__":
     hp = HyperParameters(parse_cmd_args())
@@ -29,11 +81,19 @@ if __name__ == "__main__":
     sess = tf.Session()
     K.set_session(sess)
 
-    data, X, y_ = load_data(hp.data)
+    X_data, y_data = DATASET_INFO[hp.data]["preprocess"](hp)
+    X = tf.placeholder(tf.float32, (None,) + X_data.shape[1:])
+    y_ = tf.placeholder(tf.int64, (None,))
 
-    prediction = hp.model(X, [-1, 28, 28, 1], 10)
+    prediction = hp.model(X, (-1,) + X_data.shape[1:], DATASET_INFO[hp.data]['nb_classes'])
 
-    optimizer = (AdamOptimizer if hp.optimizer == 'adam' else EveOptimizer)(hp.lr)
+    optimizers = {
+        'adam': AdamOptimizer,
+        'eve': EveOptimizer,
+        'genesis': GenesisOptimizer
+    }
+
+    optimizer = optimizers[hp.optimizer](hp.lr)
     var_list = (tf.trainable_variables() + tf.get_collection(tf.GraphKeys.TRAINABLE_RESOURCE_VARIABLES))
     with tf.name_scope('cross_entropy'):
         # The raw formulation of cross-entropy,
@@ -46,7 +106,9 @@ if __name__ == "__main__":
         # So here we use tf.nn.softmax_cross_entropy_with_logits on the
         # raw outputs of the nn_layer above, and then average across
         # the batch.
-        diff = tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=prediction)
+
+        diff = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y_, logits=prediction)
+        #diff = tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=prediction)
         with tf.name_scope('total'):
             cross_entropy = tf.reduce_mean(diff)
     tf.summary.scalar('cross_entropy', cross_entropy)
@@ -58,53 +120,65 @@ if __name__ == "__main__":
 
     with tf.name_scope('accuracy'):
         with tf.name_scope('correct_prediction'):
-            correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(y_, 1))
+            correct_prediction = tf.equal(tf.argmax(prediction, 1), y_)
         with tf.name_scope('accuracy'):
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     tf.summary.scalar('accuracy', accuracy)
 
     # Merge all the summaries and write them out to /tmp/tensorflow/mnist/logs/mnist_with_summaries (by default)
     merged = tf.summary.merge_all()
-    train_writer = tf.summary.FileWriter(logdir + '/train', sess.graph)
-    test_writer = tf.summary.FileWriter(logdir + '/test')
-    sess.run(tf.global_variables_initializer())
+
+    for cross_iter in range(hp.cross_val):
+        train_writer = tf.summary.FileWriter(logdir + '/cross{}/train'.format(cross_iter), sess.graph)
+        test_writer = tf.summary.FileWriter(logdir + '/cross{}/test'.format(cross_iter))
+        sess.run(tf.global_variables_initializer())
+
+        X_train, y_train, X_test, y_test = create_train_test(X_data, y_data, cross_iter, hp.cross_val)
+
+        # Train the model, and also write summaries.
+        # Every 10th step, measure test-set accuracy, and write test summaries
+        # All other steps, run train_step on training data, & add training summaries
+
+        train_idx = 0
+        test_idx = 0
+        def feed_dict(train):
+            global train_idx, test_idx
+            """Make a TensorFlow feed_dict: maps data onto Tensor placeholders."""
+            if train:
+                xs = X_train[train_idx:min(train_idx + hp.batch_size, X_train.shape[0])]
+                ys = y_train[train_idx:min(train_idx + hp.batch_size, y_train.shape[0])]
+                train_idx += hp.batch_size
+                train_idx = 0 if train_idx >= X_train.shape[0] else train_idx
+            else:
+                xs = X_test[test_idx:min(test_idx + hp.batch_size, X_test.shape[0])]
+                ys = y_test[test_idx:min(test_idx + hp.batch_size, y_test.shape[0])]
+                test_idx += hp.batch_size
+                test_idx = 0 if test_idx >= X_test.shape[0] else test_idx
+
+            return {X: xs, y_: ys, K.learning_phase(): int(train)}
 
 
-    # Train the model, and also write summaries.
-    # Every 10th step, measure test-set accuracy, and write test summaries
-    # All other steps, run train_step on training data, & add training summaries
-
-    def feed_dict(train):
-        """Make a TensorFlow feed_dict: maps data onto Tensor placeholders."""
-        if train:
-            xs, ys = data.train.next_batch(100)
-        else:
-            xs, ys = data.test.images, data.test.labels
-        return {X: xs, y_: ys, K.learning_phase(): int(train)}
-
-
-    for i in range(hp.max_steps):
-        if i % 10 == 0:  # Record summaries and test-set accuracy
-            accuracies = []
-            for j in range(100):
-                xs, ys = data.test.next_batch(100)
-                summary, acc = sess.run([merged, accuracy], feed_dict={X: xs, y_:ys, K.learning_phase(): 0})
-                accuracies.append(acc)
-            print("Mean accuracy: {}".format(np.mean(accuracies)))
-            test_writer.add_summary(make_summary_from_python_var('Accuracy', np.mean(accuracies, dtype='float')),  i)
-        else:  # Record train set summaries, and train
-            if i % 100 == 99:  # Record execution stats
-                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                run_metadata = tf.RunMetadata()
-                summary, _ = sess.run([merged, train_step],
-                                      feed_dict=feed_dict(True),
-                                      options=run_options,
-                                      run_metadata=run_metadata)
-                train_writer.add_run_metadata(run_metadata, 'step%03d' % i)
-                train_writer.add_summary(summary, i)
-                print('Adding run metadata for', i)
-            else:  # Record a summary
-                summary, _ = sess.run([merged, train_step], feed_dict=feed_dict(True))
-                train_writer.add_summary(summary, i)
-    train_writer.close()
-    test_writer.close()
+        for i in range(hp.max_steps):
+            if i % 10 == 0:  # Record summaries and test-set accuracy
+                accuracies = []
+                for j in range(X_test.shape[0] // hp.batch_size + 1):
+                    summary, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
+                    accuracies.append(acc)
+                print("Mean accuracy: {}".format(np.mean(accuracies)))
+                test_writer.add_summary(make_summary_from_python_var('Accuracy', np.mean(accuracies, dtype='float')), i)
+            else:  # Record train set summaries, and train
+                if i % 100 == 99:  # Record execution stats
+                    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                    run_metadata = tf.RunMetadata()
+                    summary, _ = sess.run([merged, train_step],
+                                          feed_dict=feed_dict(True),
+                                          options=run_options,
+                                          run_metadata=run_metadata)
+                    train_writer.add_run_metadata(run_metadata, 'step%03d' % i)
+                    train_writer.add_summary(summary, i)
+                    print('Adding run metadata for', i)
+                else:  # Record a summary
+                    summary, _ = sess.run([merged, train_step], feed_dict=feed_dict(True))
+                    train_writer.add_summary(summary, i)
+        train_writer.close()
+        test_writer.close()

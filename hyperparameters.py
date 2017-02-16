@@ -6,7 +6,12 @@ config1 = {
     'data': 'mnist',
     'lr': 0.001,
     'model': 'cnn',
-    'max_steps': 1000
+    'max_steps': 1000,
+    'n_samples': 0,
+    'cross_val': 5,
+    'batch_size': 64,
+    "n_vocab": 20000,
+    "max_len": 100
 }
 
 
@@ -39,3 +44,8 @@ class HyperParameters():
         self.lr = args.lr
         self.model = MODEL_FACTORIES[args.model]
         self.max_steps = args.max_steps
+        self.n_samples = args.n_samples
+        self.cross_val = args.cross_val
+        self.batch_size = args.batch_size
+        self.n_vocab = args.n_vocab
+        self.max_len = args.max_len

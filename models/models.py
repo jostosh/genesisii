@@ -44,18 +44,18 @@ def logistic_model(X, input_shape, nb_classes):
     return x
 
 
-def lstm(X, input_features = 20000):
+def lstm(X, input_shape, nb_classes):
     """
     Basic LSTM that is also used in the examples of keras:
     https://github.com/fchollet/keras/blob/master/examples/imdb_lstm.py
     :param X: tensor input for the model
-    :param input_features: Number of input features that is used for the embedding
+    :param input_shape: Number of input features that is used for the embedding
     :return: the model
     """
 
-    x = Embedding(input_features, 128, dropout=0.2)(X)
+    x = Embedding(np.prod(input_shape[1:]), 128, dropout=0.2)(X)
     x = LSTM(128, dropout_W=0.2, dropout_U=0.2)(x)
-    x = Dense(1,activation='sigmoid')(x)
+    x = Dense(nb_classes, activation='linear')(x)
     return x
 
 MODEL_FACTORIES = {
