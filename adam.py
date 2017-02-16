@@ -7,8 +7,8 @@ class AdamOptimizer(object):
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8, decay=0.):
         self.iterations = tf.Variable(0., dtype=tf.float32, trainable=False)
         self.lr = tf.Variable(lr, dtype=tf.float32, trainable=False)
-        self.beta_1 = beta_1
-        self.beta_2 = beta_2
+        self.beta_1 = tf.constant(beta_1, dtype=tf.float32)
+        self.beta_2 = tf.constant(beta_2, dtype=tf.float32)
         self.epsilon = epsilon
         self.initial_decay = self.decay = decay
 
