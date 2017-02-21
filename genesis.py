@@ -89,7 +89,7 @@ class GenesisOptimizer(object):
                 m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
                 v_t = (self.beta_2 * v) + (1. - self.beta_2) * tf.square(g)
 
-                print(v_t.get_shape(), tf.matmul(tf.sqrt(v_t), tf.diag(d_t)).get_shape())
+                #print(v_t.get_shape(), tf.matmul(tf.sqrt(v_t), tf.diag(d_t)).get_shape())
                 p_t = p - lr_t * m_t / (tf.matmul(tf.sqrt(v_t), tf.diag(d_t)) + self.epsilon)
                 self.updates.append(tf.assign(loss_per_neuron_prev, loss_hat))
                 weights_last = p
@@ -110,8 +110,8 @@ class GenesisOptimizer(object):
                 new_p = c(new_p)
             self.updates.append(tf.assign(p, new_p))
 
-        for u in self.updates:
-            print(u)
+        #for u in self.updates:
+         #   print(u)
 
 
         return self.updates
