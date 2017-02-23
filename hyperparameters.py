@@ -5,14 +5,13 @@ config1 = {
     'optimizer': 'adam',
     'data': 'mnist',
     'lr': 0.001,
-    'model': 'cnn',
-    'max_steps': 1000,
     'n_samples': 0,
     'cross_val': 5,
     'batch_size': 64,
     "n_vocab": 20000,
     "max_len": 100
 }
+
 
 def parse_cmd_args():
     """
@@ -32,7 +31,15 @@ def parse_cmd_args():
     return args
 
 
-class HyperParameters():
+epochs_by_data = {
+    'cifar10': 500,
+    'mnist': 20,
+    'cifar100': 100,
+    'oxflower': 1000
+}
+
+
+class HyperParameters:
 
     def __init__(self, args):
         if isinstance(args, dict):
@@ -41,10 +48,10 @@ class HyperParameters():
         self.optimizer = args.optimizer
         self.data = args.data
         self.lr = args.lr
-        self.model = MODEL_FACTORIES[args.model]
-        self.max_steps = args.max_steps
+        self.model = MODEL_FACTORIES[args.data]
         self.n_samples = args.n_samples
         self.cross_val = args.cross_val
         self.batch_size = args.batch_size
         self.n_vocab = args.n_vocab
         self.max_len = args.max_len
+        self.epochs = epochs_by_data[args.data]

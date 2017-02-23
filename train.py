@@ -16,6 +16,8 @@ import scipy.misc as misc
 from keras.preprocessing import sequence
 from keras.objectives import categorical_crossentropy
 
+from tqdm import tqdm
+
 def pre_process_image(hp):
     if hp.data == 'oxflower':
         X_data, y_data = DATASET_INFO[hp.data]["loader"](resize_pics=(64, 64))
@@ -78,7 +80,7 @@ if __name__ == "__main__":
     hp = HyperParameters(parse_cmd_args())
     logdir = init_log_dir(hp)
 
-    print("Use data :{} and optimizer :{}".format(hp.data,hp.optimizer))
+    print("Use data: {} and optimizer: {} and model: {}".format(hp.data, hp.optimizer, hp.model.__name__))
 
     sess = tf.Session()
     K.set_session(sess)
@@ -164,15 +166,17 @@ if __name__ == "__main__":
             return {X: xs, y_: ys, K.learning_phase(): int(train)}
 
 
-        for i in range(hp.max_steps):
-            if i % 10 == 0:  # Record summaries and test-set accuracy
-                accuracies = []
-                for j in range(X_test.shape[0] // hp.batch_size + 1):
-                    summary, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
-                    accuracies.append(acc)
-                print("Mean accuracy: {}".format(np.mean(accuracies)))
-                test_writer.add_summary(make_summary_from_python_var('Accuracy', np.mean(accuracies, dtype='float')), i)
-            else:  # Record train set summaries, and train
+        steps_per_epoch = int(np.ceil(X_train.shape[0] / hp.batch_size))
+
+        i = 0
+        for epoch in range(hp.epochs):
+            accuracies = []
+            for j in tqdm(range(int(np.ceil(X_test.shape[0] / hp.batch_size))), "Testing "):
+                summary, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
+                accuracies.append(acc)
+            print("Mean accuracy: {}".format(np.mean(accuracies)))
+            test_writer.add_summary(make_summary_from_python_var('Accuracy', np.mean(accuracies, dtype='float')), epoch)
+            for j in tqdm(range(steps_per_epoch), "Training"):
                 if i % 100 == 99:  # Record execution stats
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
@@ -182,9 +186,11 @@ if __name__ == "__main__":
                                           run_metadata=run_metadata)
                     train_writer.add_run_metadata(run_metadata, 'step%03d' % i)
                     train_writer.add_summary(summary, i)
-                    print('Adding run metadata for', i)
                 else:  # Record a summary
                     summary, _ = sess.run([merged, train_step], feed_dict=feed_dict(True))
                     train_writer.add_summary(summary, i)
+
+                i += 1
+
         train_writer.close()
         test_writer.close()

@@ -31,6 +31,36 @@ def cnn_model(x, input_shape, nb_classes):
     x = Dense(nb_classes, activation="softmax")(x)
     return x
 
+
+def big_cnn_model(x, input_shape, nb_classes):
+    x = tf.reshape(x, input_shape)
+    x = Convolution2D(64, 3, 3, activation="relu", border_mode="same")(x)
+    x = Convolution2D(64, 3, 3, activation="relu", border_mode="same")(x)
+    x = Convolution2D(64, 3, 3, activation="relu", border_mode="same")(x)
+    x = MaxPooling2D((2, 2))(x)
+    x = Dropout(0.5)(x)
+
+    x = Convolution2D(128, 3, 3, activation="relu", border_mode="same")(x)
+    x = Convolution2D(128, 3, 3, activation="relu", border_mode="same")(x)
+    x = Convolution2D(128, 3, 3, activation="relu", border_mode="same")(x)
+    x = MaxPooling2D((2, 2))(x)
+    x = Dropout(0.5)(x)
+
+    x = Convolution2D(256, 3, 3, activation="relu", border_mode="same")(x)
+    x = Convolution2D(256, 3, 3, activation="relu", border_mode="same")(x)
+    x = Convolution2D(256, 3, 3, activation="relu", border_mode="same")(x)
+    x = MaxPooling2D((2, 2))(x)
+    x = Dropout(0.5)(x)
+
+    x = tf.reshape(x, [-1, np.prod(x.get_shape()[1:].as_list())])
+    x = Dense(512, activation="relu")(x)
+    x = Dropout(0.5)(x)
+    x = Dense(512, activation="relu")(x)
+    x = Dropout(0.5)(x)
+    x = Dense(nb_classes, activation="softmax")(x)
+    return x
+
+
 def logistic_model(X, input_shape, nb_classes):
     """
     Logistic regression that also is used by
@@ -58,8 +88,13 @@ def lstm(X, input_shape, nb_classes):
     x = Dense(nb_classes, activation='linear')(x)
     return x
 
+
 MODEL_FACTORIES = {
-    "cnn": cnn_model,
+    "mnist": cnn_model,
+    "cifar10": cnn_model,
+    "cifar100": big_cnn_model,
+    "oxflower": big_cnn_model,
     "logistic": logistic_model,
-    "lstm" : lstm
- }
+    "imdb" : lstm,
+    "reuters": lstm
+}

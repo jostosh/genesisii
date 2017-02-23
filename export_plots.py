@@ -156,7 +156,7 @@ def export_plots():
     file_count = 0
     for root, dir, files in os.walk(args.input_dir):
 
-        if any([IsTensorFlowEventsFile(f) for f in files]) and root.split('/')[-1] == 'test' and \
+        if any([IsTensorFlowEventsFile(f) for f in files]) and root.split('/')[-1] == args.mode and \
                 all('cross{}'.format(i) in os.listdir(root + '/../..') for i in range(5)):
             hyper_parameters = {
                 'data': re.search('.*data=(.*?)\/.*', root).group(1),
@@ -243,23 +243,41 @@ def export_plots():
             'mnist': 'lower right'
         }
 
+        title = group.title() if not args.title else args.title.title()
+        ylabel = args.scalar.title() if not args.ylabel else args.ylabel.title()
+        fnm = '_'.join([group, args.scalar, args.image_suffix])
+
         data = go.Data(data_objs)
-        layout.title = group if not args.title else args.title
-        layout.yaxis.title = args.scalar if not args.ylabel else args.ylabel
+        layout.title = title
+        layout.yaxis.title = ylabel
         fig = go.Figure(data=data, layout=layout)
-        py.plot(fig, filename=group.replace('-v0', '') + args.image_suffix + '.html')
+        py.plot(fig, filename=fnm + '.html')
 
         plt.xlabel(args.xlabel)
-        plt.ylabel(args.scalar if not args.ylabel else args.ylabel)
-        plt.title(group if not args.title else args.title)
+        plt.ylabel(ylabel)
+        plt.title(title)
         if args.xrange:
             plt.xlim(args.xrange)
         if args.yrange:
             plt.ylim(args.yrange)
         plt.legend(handles=handles, loc=position_by_group[group], framealpha=0.)
 
-        plt.savefig(os.path.join(args.output_dir, group + args.image_suffix + '.pdf'))
+        plt.savefig(os.path.join(args.output_dir, fnm + '.pdf'))
         plt.clf()
+
+        write_tex(ylabel, args.xlabel, os.path.join(args.output_dir, fnm + '.pdf'), group)
+
+
+def write_tex(ylabel, xlabel, path, group):
+    str = "\\begin{{figure}}\n" \
+          "\t \\centering\n"\
+          "\t \\includegraphics[width=\\linewidth]{{{path}}}\n"\
+          "\t \\caption{{Mean {ylabel} vs. {xlabel} on {group} in which the shaded areas indicate the standard deviations.\n"\
+          "\t \\label{{fig:{group}:{ylabel}}}\n"\
+          "\\end{{figure}}\n".format(path=path, ylabel=ylabel.lower(), xlabel=xlabel.lower(), group=group)
+
+    with open(path.replace('.pdf', '.tex'), 'w') as f:
+        f.write(str)
 
 
 if __name__ == "__main__":
@@ -280,6 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--yrange", nargs='+', default=[], type=int)
     parser.add_argument("--trace_by", nargs='+', default=['optimizer'])
     parser.add_argument("--group_by", default='data')
+    parser.add_argument("--mode", default='test')
     args = parser.parse_args()
 
     export_plots()
