@@ -14,7 +14,6 @@ config1 = {
     "max_len": 100
 }
 
-
 def parse_cmd_args():
     """
     This function sets the command line arguments to look for. The defaults are given in config1 above.

@@ -28,7 +28,7 @@ def cnn_model(x, input_shape, nb_classes):
     x = tf.reshape(x, [-1, np.prod(x.get_shape()[1:].as_list())]) #flatten
     x = Dense(512, activation="relu")(x)
     x = Dropout(0.5)(x)
-    x = Dense(nb_classes, activation="linear")(x)
+    x = Dense(nb_classes, activation="softmax")(x)
     return x
 
 def logistic_model(X, input_shape, nb_classes):
