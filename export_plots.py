@@ -17,7 +17,7 @@ import re
 import plotly.plotly as py
 import plotly.graph_objs as go
 
-
+from plotly.grid_objs import Grid, Column
 
 mpl.rc('text', usetex=True)
 mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern Roman'], 'size': 14})
@@ -120,7 +120,6 @@ def obtain_name(hp):
     '''
 
 
-
 def export_plots():
 
     layout = go.Layout(
@@ -162,6 +161,8 @@ def export_plots():
                 'data': re.search('.*data=(.*?)\/.*', root).group(1),
                 'optimizer': re.search('.*optimizer=(.*?)\/.*', root).group(1)
             }
+            if args.data and hyper_parameters['data'] != args.data:
+                continue
 
             print(root, dir, files)
 
@@ -186,6 +187,13 @@ def export_plots():
         handles = []
 
         data_objs = []
+
+        columns = []
+        names = []
+        max_x = np.inf
+        max_x_idx = 0
+
+        data_groups = []
         for hyper_parameters_str, event_files in sorted(event_files_by_hp.items()):
             hyper_parameters = json.loads(hyper_parameters_str)
             events_by_scalar = {}
@@ -213,6 +221,10 @@ def export_plots():
                 values = np.asarray(values)
                 errors = np.asarray(errors)
 
+                if steps[-1] < max_x:
+                    max_x = steps[-1]
+                    max_x_idx = len(steps)
+
                 plt.fill_between(steps, values - errors, values + errors, facecolor=colorscalen[hp_idx], alpha=0.2)
 
                 handles.append(plt.plot(steps, values, linewidth=3.0, color=colorscalen[hp_idx],
@@ -232,6 +244,13 @@ def export_plots():
                     mode='lines',
                     name=obtain_name(hyper_parameters)
                 )
+                names.append(obtain_name(hyper_parameters))
+
+                if args.animation:
+                    for i in range(0, len(steps), args.animation_step):
+                        columns.append(Column(steps[:i:args.animation_step], 'x_{}_{}'.format(obtain_name(hyper_parameters), i)))
+                        columns.append(Column(values[:i:args.animation_step], 'y_{}_{}'.format(obtain_name(hyper_parameters), i)))
+
                 data_objs += [trace, line]
 
             hp_idx += 1
@@ -247,32 +266,107 @@ def export_plots():
         ylabel = args.scalar.title() if not args.ylabel else args.ylabel.title()
         fnm = '_'.join([group, args.scalar, args.image_suffix])
 
-        data = go.Data(data_objs)
-        layout.title = title
-        layout.yaxis.title = ylabel
-        fig = go.Figure(data=data, layout=layout)
-        py.plot(fig, filename=fnm + '.html')
+        if args.animation:
+            import time
+            grid = Grid(columns)
+            py.grid_ops.upload(grid, fnm + str(time.time()), auto_open=False)
+            data = go.Data([
+                    go.Scatter(
+                        xsrc=grid.get_column_reference('x_{}_0'.format(name)),
+                        ysrc=grid.get_column_reference('y_{}_0'.format(name)),
+                        line=go.Line(color=colorscale[hp_idx], width=3),
+                        mode='lines',
+                        name=name
+                    ) for hp_idx, name in enumerate(names)
+                ]
+            )
 
-        plt.xlabel(args.xlabel)
-        plt.ylabel(ylabel)
-        plt.title(title)
-        if args.xrange:
-            plt.xlim(args.xrange)
-        if args.yrange:
-            plt.ylim(args.yrange)
-        plt.legend(handles=handles, loc=position_by_group[group], framealpha=0.)
+            animation_layout = go.Layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgb(229,229,229)',
+                title=title,
+                showlegend=True,
+                updatemenus= [{
+                   'buttons': [
+                       {'args': [None, dict(frame=dict(duration=50, redraw=True),
+                                            transition=dict(duration=0),
+                                            fromcurrent=True,
+                                            mode='immediate')],
+                        'label': 'Play',
+                        'method': 'animate'}
+                   ],
+                    'pad': {'r': 10, 't': 87},
+                    'showactive': True,
+                    'type': 'buttons'
+                }],
+                xaxis=go.XAxis(
+                    gridcolor='rgb(255,255,255)',
+                    showgrid=True,
+                    showline=False,
+                    showticklabels=True,
+                    tickcolor='rgb(127,127,127)',
+                    ticks='outside',
+                    zeroline=False,
+                    title=args.xlabel,
+                    #autorange=False,
+                    range=[0, max_x]
+                ),
+                yaxis=go.YAxis(
+                    gridcolor='rgb(255,255,255)',
+                    showgrid=True,
+                    showline=False,
+                    showticklabels=True,
+                    tickcolor='rgb(127,127,127)',
+                    ticks='outside',
+                    zeroline=False,
+                    title=ylabel,
+                    #autorange=False,
+                    range=[0, 1]
+                ),
+            )
+            #)
+            frame_data = []
+            for i in range(0, max_x_idx, args.animation_step):
+                data_group = []
+                for hp_idx, name in enumerate(names):
+                    data_group.append(go.Scatter(
+                        xsrc=grid.get_column_reference('x_{}_{}'.format(name, i)),
+                        ysrc=grid.get_column_reference('y_{}_{}'.format(name, i)),
+                        line=go.Line(color=colorscale[hp_idx], width=3),
+                        mode='lines'
+                    ))
+                frame_data.append({'data': data_group})
 
-        plt.savefig(os.path.join(args.output_dir, fnm + '.pdf'))
-        plt.clf()
+            #frames = go.Frames(dict=frame_data)
+            figure = go.Figure(data=data, layout=animation_layout, frames=frame_data)
+            py.create_animations(figure, filename=fnm + 'animation' + str(time.time()))
+        else:
+            data = go.Data(data_objs)
+            layout.title = title
+            layout.yaxis.title = ylabel
+            fig = go.Figure(data=data, layout=layout)
+            py.plot(fig, filename=fnm + '.html')
 
-        write_tex(ylabel, args.xlabel, os.path.join(args.output_dir, fnm + '.pdf'), group)
+            plt.xlabel(args.xlabel)
+            plt.ylabel(ylabel)
+            plt.title(title)
+            if args.xrange:
+                plt.xlim(args.xrange)
+            if args.yrange:
+                plt.ylim(args.yrange)
+            plt.legend(handles=handles, loc=position_by_group[group], framealpha=0.)
+
+            plt.savefig(os.path.join(args.output_dir, fnm + '.pdf'))
+            plt.clf()
+
+            write_tex(ylabel, args.xlabel, os.path.join(args.output_dir, fnm + '.pdf'), group)
 
 
 def write_tex(ylabel, xlabel, path, group):
     str = "\\begin{{figure}}\n" \
           "\t \\centering\n"\
           "\t \\includegraphics[width=\\linewidth]{{{path}}}\n"\
-          "\t \\caption{{Mean {ylabel} vs. {xlabel} on {group} in which the shaded areas indicate the standard deviations.\n"\
+          "\t \\caption{{Mean {ylabel} vs. {xlabel} on {group} in which the shaded areas indicate the standard deviations.}}\n"\
           "\t \\label{{fig:{group}:{ylabel}}}\n"\
           "\\end{{figure}}\n".format(path=path, ylabel=ylabel.lower(), xlabel=xlabel.lower(), group=group)
 
@@ -288,8 +382,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default=os.path.join(project_root, 'doc', 'im'))
     parser.add_argument("--scalar", default='Accuracy')
     parser.add_argument("--ignore_params", nargs='+', default=[])
-    parser.add_argument("--data", default='mnist')
+    parser.add_argument("--data", default=None)
     parser.add_argument("--interpolate", dest='interpolate', action='store_true')
+    parser.add_argument("--animation", dest='animation', action='store_true')
     parser.add_argument("--image_suffix", default="")
     parser.add_argument("--xlabel", default="Train step")
     parser.add_argument("--ylabel", default=None)
@@ -299,6 +394,7 @@ if __name__ == "__main__":
     parser.add_argument("--trace_by", nargs='+', default=['optimizer'])
     parser.add_argument("--group_by", default='data')
     parser.add_argument("--mode", default='test')
+    parser.add_argument("--animation_step", default=100, type=int)
     args = parser.parse_args()
 
     export_plots()
