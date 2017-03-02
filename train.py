@@ -40,10 +40,11 @@ def pre_process_image(hp):
 
 def pre_process_text(hp):
     (X_train, y_train), _ = DATASET_INFO[hp.data]["loader"](nb_words=hp.n_vocab)
-    if hp.n_samples is not None:
+    if hp.n_samples > 0:
         X_train, y_train = X_train[:hp.n_samples], y_train[:hp.n_samples]
     X_train = sequence.pad_sequences(X_train, maxlen=hp.max_len)
     y_train = np.array(y_train)
+
     #y_train = np_utils.to_categorical(y_train, DATASET_INFO[hp.data]["nb_classes"])
     return X_train, y_train
 
@@ -87,14 +88,15 @@ if __name__ == "__main__":
 
     X_data, y_data = DATASET_INFO[hp.data]["preprocess"](hp)
     X = tf.placeholder(tf.float32, (None,) + X_data.shape[1:])
-    y_ = tf.placeholder(tf.float32, (None,DATASET_INFO[hp.data]['nb_classes']))
+    y_ = tf.placeholder(tf.float32, (None, DATASET_INFO[hp.data]['nb_classes'])) if hp.data not in ['imdb', 'reuters'] \
+        else tf.placeholder(tf.int64, (None,))
 
     prediction = hp.model(X, (-1,) + X_data.shape[1:], DATASET_INFO[hp.data]['nb_classes'])
 
     optimizers = {
-        'adam': AdamOptimizer,
-        'eve': EveOptimizer,
-        'genesis': GenesisOptimizer
+        'adam':     AdamOptimizer,
+        'eve':      EveOptimizer,
+        'genesis':  GenesisOptimizer
     }
 
     optimizer = optimizers[hp.optimizer](hp.lr)
@@ -115,7 +117,11 @@ if __name__ == "__main__":
 
         #diff = tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=prediction)
 
-        with tf.name_scope('total'):
+        #with tf.name_scope('total'):
+
+        if hp.data in ['imdb', 'reuters']:
+            cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y_, logits=prediction))
+        else:
             cross_entropy = tf.reduce_mean(categorical_crossentropy(y_, prediction))
             #cross_entropy = tf.reduce_mean(diff)
     tf.summary.scalar('cross_entropy', cross_entropy)
@@ -127,7 +133,8 @@ if __name__ == "__main__":
 
     with tf.name_scope('accuracy'):
         with tf.name_scope('correct_prediction'):
-            correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(y_,1))
+            correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(y_,1)) \
+                if hp.data not in ['imdb', 'reuters'] else tf.equal(tf.argmax(prediction, 1), y_)
         with tf.name_scope('accuracy'):
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     tf.summary.scalar('accuracy', accuracy)
@@ -187,8 +194,7 @@ if __name__ == "__main__":
                     train_writer.add_run_metadata(run_metadata, 'step%03d' % i)
                     train_writer.add_summary(summary, i)
                 else:  # Record a summary
-                    summary, _ = sess.run([merged, train_step], feed_dict=feed_dict(True))
-                    train_writer.add_summary(summary, i)
+                    sess.run([train_step], feed_dict=feed_dict(True))
 
                 i += 1
 

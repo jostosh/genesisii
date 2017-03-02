@@ -35,7 +35,9 @@ epochs_by_data = {
     'cifar10': 500,
     'mnist': 20,
     'cifar100': 100,
-    'oxflower': 1000
+    'oxflower': 1000,
+    'imdb': 1000,
+    'reuters': 1000
 }
 
 
