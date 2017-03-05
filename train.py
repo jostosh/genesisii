@@ -7,6 +7,7 @@ import os
 from adam import AdamOptimizer
 from eve import EveOptimizer
 from genesis import GenesisOptimizer
+from rmseve import RMSEveOptimizer
 import numpy as np
 from tensorboardutil import make_summary_from_python_var
 from keras.utils import np_utils
@@ -96,7 +97,8 @@ if __name__ == "__main__":
     optimizers = {
         'adam':     AdamOptimizer,
         'eve':      EveOptimizer,
-        'genesis':  GenesisOptimizer
+        'genesis':  GenesisOptimizer,
+        'rmseve':   RMSEveOptimizer
     }
 
     optimizer = optimizers[hp.optimizer](hp.lr)
@@ -112,12 +114,6 @@ if __name__ == "__main__":
         # So here we use tf.nn.softmax_cross_entropy_with_logits on the
         # raw outputs of the nn_layer above, and then average across
         # the batch.
-
-        #diff = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y_, logits=prediction)
-
-        #diff = tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=prediction)
-
-        #with tf.name_scope('total'):
 
         if hp.data in ['imdb', 'reuters']:
             cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y_, logits=prediction))
