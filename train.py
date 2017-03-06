@@ -138,6 +138,7 @@ if __name__ == "__main__":
     # Merge all the summaries and write them out to /tmp/tensorflow/mnist/logs/mnist_with_summaries (by default)
     merged = tf.summary.merge_all()
 
+    print("LOGDIR: ", logdir)
     for cross_iter in range(hp.cross_val):
         train_writer = tf.summary.FileWriter(logdir + '/cross{}/train'.format(cross_iter), sess.graph)
         test_writer = tf.summary.FileWriter(logdir + '/cross{}/test'.format(cross_iter))
@@ -179,6 +180,7 @@ if __name__ == "__main__":
                 accuracies.append(acc)
             print("Mean accuracy: {}".format(np.mean(accuracies)))
             test_writer.add_summary(make_summary_from_python_var('Accuracy', np.mean(accuracies, dtype='float')), epoch)
+            test_writer.flush()
             for j in tqdm(range(steps_per_epoch), "Training"):
                 if i % 100 == 99:  # Record execution stats
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -189,6 +191,7 @@ if __name__ == "__main__":
                                           run_metadata=run_metadata)
                     train_writer.add_run_metadata(run_metadata, 'step%03d' % i)
                     train_writer.add_summary(summary, i)
+                    train_writer.flush()
                 else:  # Record a summary
                     sess.run([train_step], feed_dict=feed_dict(True))
 

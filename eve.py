@@ -5,7 +5,7 @@ import tensorflow as tf
 class EveOptimizer(object):
 
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999, beta_3=0.999, epsilon=1e-8, decay=0.,
-                 thl=0.1, thu=10.):
+                 thl=0.1, thu=10., d_clip_lo=0.1, d_clip_hi=10.0):
         self.iterations = tf.Variable(0., dtype=tf.float32, trainable=False)
         self.lr = tf.Variable(lr, dtype=tf.float32, trainable=False)
         self.beta_1 = beta_1
@@ -17,6 +17,9 @@ class EveOptimizer(object):
         self.thu = tf.constant(thu)
         self.d = tf.Variable(1., trainable=False)
 
+        self.d_clip_lo = d_clip_lo
+        self.d_clip_hi = d_clip_hi
+
         self.updates = []
         self.weights = []
 
@@ -24,14 +27,12 @@ class EveOptimizer(object):
         self.updates.append(tf.assign_add(self.iterations, 1))
         grads = tf.gradients(loss, params)
 
-        lr = self.lr
-        if self.initial_decay > 0:
-            lr *= (1. / (1. + self.decay * self.iterations))
-
+        #lr = self.lr
         t = self.iterations + 1
         not_first_iter = tf.greater(self.iterations, 1.)
 
-        loss_prev = tf.Variable(0., dtype=tf.float32, trainable=False)
+        loss_prev =     tf.Variable(0., dtype=tf.float32, trainable=False)
+        loss_hat_prev = tf.Variable(0., dtype=tf.float32, trainable=False)
 
         cond = tf.greater(loss, loss_prev)
         ch_fact_lbound = tf.cond(cond, lambda: 1 + self.thl, lambda: 1/(1+self.thu))
@@ -39,14 +40,21 @@ class EveOptimizer(object):
         loss_ch_fact = loss / loss_prev
         loss_ch_fact = tf.maximum(loss_ch_fact, ch_fact_lbound)
         loss_ch_fact = tf.minimum(loss_ch_fact, ch_fact_ubound)
-        loss_hat = tf.cond(not_first_iter, lambda: loss_prev * loss_ch_fact, lambda: loss)
+        loss_hat = tf.cond(not_first_iter, lambda: loss_hat_prev * loss_ch_fact, lambda: loss)
 
-        d_den = tf.minimum(loss_hat, loss_prev) #tf.cond(tf.greater(loss_hat, loss_prev), )
-        d_t = (self.beta_3 * self.d) + (1. - self.beta_3) * tf.abs((loss_hat - loss_prev) / d_den)
-        d_t = tf.cond(not_first_iter, lambda: d_t, lambda: tf.constant(1.))
+        d_den = tf.minimum(loss_hat, loss_hat_prev) #tf.cond(tf.greater(loss_hat, loss_prev), )
+        d_t = (self.beta_3 * self.d) + (1. - self.beta_3) * tf.abs((loss_hat - loss_hat_prev) / d_den)
+        d_t = tf.clip_by_value(
+            tf.cond(not_first_iter, lambda: d_t, lambda: tf.constant(1.)),
+            self.d_clip_lo,
+            self.d_clip_hi
+        )
+
+
         self.updates.append(tf.assign(self.d, d_t))
 
-        lr_t = lr * (tf.sqrt(1 - tf.pow(self.beta_2, t)) / (1. - tf.pow(self.beta_1, t)))
+        lr_t = self.lr * (tf.sqrt(1 - tf.pow(self.beta_2, t)) / (1. - tf.pow(self.beta_1, t))) / \
+               (1 + self.iterations * self.decay)
 
         shapes = [p.get_shape().as_list() for p in params]
         ms = [tf.Variable(tf.zeros(shape)) for shape in shapes]
@@ -69,6 +77,7 @@ class EveOptimizer(object):
                 new_p = c(new_p)
             self.updates.append(tf.assign(p, new_p))
 
-        self.updates.append(tf.assign(loss_prev, loss_hat))
+        self.updates.append(tf.assign(loss_prev, loss))
+        self.updates.append(tf.assign(loss_hat_prev, loss_hat))
 
         return self.updates
