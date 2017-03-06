@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     train_step = tf.group(*optimizer.get_updates(var_list, cross_entropy))
 
-    if hp.optimizer == 'eve':
+    if hp.optimizer in ['eve', 'rmseve']:
         tf.summary.scalar('d', optimizer.d)
 
     with tf.name_scope('accuracy'):

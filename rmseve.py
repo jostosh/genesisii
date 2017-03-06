@@ -1,11 +1,13 @@
 """Adam for TensorFlow."""
 import tensorflow as tf
 
+from keras.optimizers import RMSprop
+
 
 class RMSEveOptimizer(object):
 
-    def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999, beta_3=0.999, epsilon=1e-8, decay=0.,
-                 thl=0.2, thu=5.):
+    def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999, beta_3=0.999, epsilon=1e-4, decay=0.,
+                 thl=0.2, thu=5., d_clip_lo=0.1, d_clip_hi=5.0):
         self.iterations = tf.Variable(0., dtype=tf.float32, trainable=False)
         self.lr = tf.convert_to_tensor(tf.Variable(lr, dtype=tf.float32, trainable=False))
         self.beta_1 = beta_1
@@ -16,6 +18,9 @@ class RMSEveOptimizer(object):
         self.thl = tf.constant(thl)
         self.thu = tf.constant(thu)
         self.d = tf.Variable(1., trainable=False)
+
+        self.d_clip_lo = d_clip_lo
+        self.d_clip_hi = d_clip_hi
 
         self.updates = []
         self.weights = []
@@ -43,21 +48,25 @@ class RMSEveOptimizer(object):
 
         d_den = tf.minimum(loss_hat, loss_prev) #tf.cond(tf.greater(loss_hat, loss_prev), )
         d_t = (self.beta_3 * self.d) + (1. - self.beta_3) * tf.abs((loss_hat - loss_prev) / d_den)
-        d_t = tf.cond(not_first_iter, lambda: d_t, lambda: tf.constant(1.))
+        d_t = tf.clip_by_value(
+            tf.cond(not_first_iter, lambda: d_t, lambda: tf.constant(1.)),
+            self.d_clip_lo,
+            self.d_clip_hi
+        )
         self.updates.append(tf.assign(self.d, d_t))
 
         lr_t = lr * (tf.sqrt(1 - tf.pow(self.beta_2, t)) / (1. - tf.pow(self.beta_1, t)))
 
         shapes = [p.get_shape().as_list() for p in params]
-        ms = [tf.Variable(tf.zeros(shape)) for shape in shapes]
+        vs = [tf.Variable(tf.zeros(shape)) for shape in shapes]
 
-        self.weights = [self.iterations, self.d, loss_prev] + ms
+        self.weights = [self.iterations, self.d, loss_prev] + vs
 
-        for p, g, m in zip(params, grads, ms):
-            m_t = (self.beta_1 * m) + (1. - self.beta_1) * tf.square(g)
-            p_t = p - lr_t * g / (tf.sqrt(m_t) * d_t + self.epsilon)
+        for p, g, v in zip(params, grads, vs):
+            v_t = (self.beta_1 * v) + (1. - self.beta_1) * tf.square(g)
+            p_t = p - lr_t * g / (tf.sqrt(v_t) * d_t + self.epsilon)
 
-            self.updates.append(tf.assign(m, m_t))
+            self.updates.append(tf.assign(v, v_t))
 
             new_p = p_t
 
