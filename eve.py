@@ -35,12 +35,12 @@ class EveOptimizer(object):
         loss_hat_prev = tf.Variable(0., dtype=tf.float32, trainable=False)
 
         cond = tf.greater(loss, loss_prev)
-        ch_fact_lbound = tf.cond(cond, lambda: 1 + self.thl, lambda: 1/(1+self.thu))
-        ch_fact_ubound = tf.cond(cond, lambda: 1 + self.thu, lambda: 1/(1+self.thl))
-        loss_ch_fact = loss / loss_prev
-        loss_ch_fact = tf.maximum(loss_ch_fact, ch_fact_lbound)
-        loss_ch_fact = tf.minimum(loss_ch_fact, ch_fact_ubound)
-        loss_hat = tf.cond(not_first_iter, lambda: loss_hat_prev * loss_ch_fact, lambda: loss)
+        change_factor_lbound = tf.cond(cond, lambda: 1 + self.thl, lambda: 1/(1+self.thu))
+        change_factor_ubound = tf.cond(cond, lambda: 1 + self.thu, lambda: 1/(1+self.thl))
+        loss_change_factor = loss / loss_prev
+        loss_change_factor = tf.maximum(loss_change_factor, change_factor_lbound)
+        loss_change_factor = tf.minimum(loss_change_factor, change_factor_ubound)
+        loss_hat = tf.cond(not_first_iter, lambda: loss_hat_prev * loss_change_factor, lambda: loss)
 
         d_den = tf.minimum(loss_hat, loss_hat_prev) #tf.cond(tf.greater(loss_hat, loss_prev), )
         d_t = (self.beta_3 * self.d) + (1. - self.beta_3) * tf.abs((loss_hat - loss_hat_prev) / d_den)
