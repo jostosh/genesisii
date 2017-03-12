@@ -8,6 +8,7 @@ from adam import AdamOptimizer
 from eve import EveOptimizer
 from genesis import GenesisOptimizer
 from rmseve import RMSEveOptimizer
+from rmsprop import RMSPropOptimizer
 import numpy as np
 from tensorboardutil import make_summary_from_python_var
 from keras.utils import np_utils
@@ -98,7 +99,8 @@ if __name__ == "__main__":
         'adam':     AdamOptimizer,
         'eve':      EveOptimizer,
         'genesis':  GenesisOptimizer,
-        'rmseve':   RMSEveOptimizer
+        'rmseve':   RMSEveOptimizer,
+        'rmsprop':  RMSPropOptimizer
     }
 
     optimizer = optimizers[hp.optimizer](hp.lr)
