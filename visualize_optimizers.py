@@ -10,6 +10,7 @@ from adam import AdamOptimizer
 from eve import EveOptimizer
 from rmseve import RMSEveOptimizer
 from rmsprop import RMSPropOptimizer
+from keras.optimizers import SGD
 
 x = tf.Variable(-1.0, dtype=tf.float32)
 y = tf.Variable(1e-10, dtype=tf.float32)
@@ -67,6 +68,7 @@ adam = AdamOptimizer()
 eve = EveOptimizer()
 rms = RMSPropOptimizer()
 rmseve = RMSEveOptimizer()
+sgd = SGD(lr=0.001)
 
 sess = tf.Session()
 
@@ -75,15 +77,16 @@ paths = {
     eve:  {'x': [], 'y': [], 'z': [], 'name': 'Eve'},
     rms: {'x': [], 'y': [], 'z': [], 'name': 'RMSProp'},
     rmseve: {'x': [], 'y': [], 'z': [], 'name': 'RMSEve'},
+    sgd: {'x': [], 'y': [], 'z': [], 'name': 'SGD'},
 }
 
 maxlen = 0
 
 for opt in paths.keys():
-    updates = opt.get_updates([x, y], loss)
+    updates = opt.get_updates(params=[x, y], loss=loss, constraints=[])
     sess.run(tf.global_variables_initializer())
 
-    for i in range(10000):
+    for i in range(5000):
         _, xnum, ynum, znum = sess.run([updates, x, y, loss])
         paths[opt]['x'].append(xnum)
         paths[opt]['y'].append(ynum)
@@ -144,7 +147,7 @@ surface = [
             x=dict(show=True, width=0.05), y=dict(show=True, width=0.05)
         ),
         showscale=False,
-        hoverinfo='skip'
+        hoverinfo='none'
     )
 ]
 
