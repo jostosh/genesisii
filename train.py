@@ -8,7 +8,8 @@ from adam import AdamOptimizer
 from eve import EveOptimizer
 from genesis import GenesisOptimizer
 from rmseve import RMSEveOptimizer
-from rmsprop import RMSPropOptimizer
+#from rmsprop import RMSPropOptimizer
+from keras.optimizers import RMSprop as RMSPropOptimizer
 from keras_eve import Eve
 import numpy as np
 from tensorboardutil import make_summary_from_python_var
@@ -104,8 +105,8 @@ if __name__ == "__main__":
         'kerasEve': Eve
     }
 
-    optimizer = optimizers[hp.optimizer](hp.lr)
     var_list = (tf.trainable_variables() + tf.get_collection(tf.GraphKeys.TRAINABLE_RESOURCE_VARIABLES))
+    optimizer = optimizers[hp.optimizer](hp.lr)
     with tf.name_scope('cross_entropy'):
         # The raw formulation of cross-entropy,
         #
@@ -125,7 +126,7 @@ if __name__ == "__main__":
             #cross_entropy = tf.reduce_mean(diff)
     tf.summary.scalar('cross_entropy', cross_entropy)
 
-    train_step = tf.group(*optimizer.get_updates(var_list, cross_entropy))
+    train_step = tf.group(*optimizer.get_updates(params=var_list, loss=cross_entropy, constraints=[]))
 
     if hp.optimizer in ['eve', 'rmseve','kerasEve']:
         tf.summary.scalar('d', optimizer.d)
