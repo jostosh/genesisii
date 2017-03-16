@@ -9,8 +9,8 @@ import time
 from adam import AdamOptimizer
 from eve import EveOptimizer
 from rmseve import RMSEveOptimizer
-from rmsprop import RMSPropOptimizer
-from keras.optimizers import SGD
+#from rmsprop import RMSPropOptimizer
+from keras.optimizers import SGD, RMSprop as RMSPropOptimizer
 
 x = tf.Variable(-1.0, dtype=tf.float32)
 y = tf.Variable(1e-10, dtype=tf.float32)
@@ -32,21 +32,15 @@ columns.append(Column(z,      'zmesh'))
 
 layout = go.Layout(
     title='Optimizers',
-    autosize=False,
-    width=800,
-    height=800,
-    margin=dict(
-        l=65,
-        r=50,
-        b=65,
-        t=90
-    ),
-    font=dict(size=14, family='sans-serif'),
-    paper_bgcolor='(0,0,0,0)',
+    autosize=True,
+    font=dict(size=14, family='sans-serif', color='white'),
+    paper_bgcolor='rgba(255,255,255,0)',
+    plot_bgcolor='rgba(255,255,255,0.8)',
     scene=(dict(
-    xaxis=dict(range=[-1,0, 0.5]),
-    yaxis=dict(range=[-1, 5]),
-    zaxis=dict(range=[np.min(z), 1.0])
+        xaxis=dict(range=[-1,0, 0.5], backgroundcolor='rgb(230, 230,230)', showbackground=True),
+        yaxis=dict(range=[-1, 5], backgroundcolor='rgb(230, 230,230)', showbackground=True),
+        zaxis=dict(range=[np.min(z), 1.0], backgroundcolor='rgb(230, 230,230)', showbackground=True),
+        hovermode=False,
     )),
     updatemenus= [{
        'buttons': [
@@ -57,9 +51,10 @@ layout = go.Layout(
             'label': 'Play',
             'method': 'animate'}
        ],
-        'pad': {'r': 10, 't': 87},
+        'pad': {'r': 10, 't': 10},
         'showactive': True,
-        'type': 'buttons'
+        'type': 'buttons',
+        'font': dict(color='black')
     }],
     showlegend=True
 )
@@ -74,9 +69,9 @@ sess = tf.Session()
 
 paths = {
     adam: {'x': [], 'y': [], 'z': [], 'name': 'Adam'},
-    eve:  {'x': [], 'y': [], 'z': [], 'name': 'Eve'},
+    #eve:  {'x': [], 'y': [], 'z': [], 'name': 'Eve'},
     rms: {'x': [], 'y': [], 'z': [], 'name': 'RMSProp'},
-    rmseve: {'x': [], 'y': [], 'z': [], 'name': 'RMSEve'},
+    #rmseve: {'x': [], 'y': [], 'z': [], 'name': 'RMSEve'},
     sgd: {'x': [], 'y': [], 'z': [], 'name': 'SGD'},
 }
 
@@ -142,7 +137,7 @@ surface = [
         xsrc=grid.get_column_reference('xmesh'),
         ysrc=grid.get_column_reference('ymesh'),
         zsrc=grid.get_column_reference('zmesh'),
-        opacity=0.9,
+        opacity=0.95,
         contours=go.Contours(
             x=dict(show=True, width=0.05), y=dict(show=True, width=0.05)
         ),

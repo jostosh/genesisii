@@ -33,7 +33,7 @@ def parse_params(params):
 def execute(args):
     loss, x, x_mesh, y = define_loss()
 
-    s = 5
+    s = args.s
     columns = []
 
     columns.append(Column(x_mesh, 'xmesh'))
@@ -42,10 +42,10 @@ def execute(args):
     sess = tf.Session()
 
     if args.params:
-        paths = {str_to_opt[s](lr=0.001, **parse_params(p)): {'x': [], 'y': [], 'name': s + ' ' + p.replace('_', ' ').title()}
+        paths = {str_to_opt[s](lr=args.lr, **parse_params(p)): {'x': [], 'y': [], 'name': s + ' ' + p.replace('_', ' ').title()}
                  for s, p in zip(args.optimizers, args.params)}
     else:
-        paths = {str_to_opt[s](lr=0.001): {'x': [], 'y': [], 'name': s} for s in args.optimizers}
+        paths = {str_to_opt[s](lr=args.lr): {'x': [], 'y': [], 'name': s} for s in args.optimizers}
 
     #if args.plotd:
     #    feedback = {
@@ -61,7 +61,7 @@ def execute(args):
         updates = opt.get_updates(params=[x], loss=loss, constraints=[])
         sess.run(tf.global_variables_initializer())
 
-        for i in range(2500):
+        for i in range(args.t_max):
             #if opt in feedback:
             #    _, xnum, ynum, d = sess.run([updates, x, loss, opt.d])
             #    feedback[opt]['y'].append(d)
@@ -73,42 +73,42 @@ def execute(args):
             paths[opt]['x'].append(xnum)
             paths[opt]['y'].append(ynum)
 
-
             if xnum < -1 or xnum > 1:
-                maxlen = max(maxlen, i)
                 break
+
+        maxlen = max(maxlen, len(paths[opt]['x']))
     #print(maxd)
     #exit(0)
 
     layout = go.Layout(
         title='Optimizers' if not args.title else args.title,
-        autosize=False,
-        width=800,
-        height=800,
+        autosize=True,
         margin=dict(
             l=65,
             r=50,
             b=65,
             t=90
         ),
-        font=dict(size=14, family='sans-serif'),
-        paper_bgcolor='(0,0,0,0)',
+        font=dict(size=14, family='sans-serif', color='white'),
+        paper_bgcolor='rgba(255,255,255,0)',
+        plot_bgcolor='rgba(255,255,255,0.8)',
         xaxis=go.XAxis(range=[0, 1], title='x'),
         yaxis=go.YAxis(range=[0, 1.1], title='loss'),
         updatemenus=[{
             'buttons': [
-                {'args': [None, dict(frame=dict(duration=50, redraw=False),
+                {'args': [None, dict(frame=dict(duration=args.duration, redraw=False),
                                      transition=dict(duration=10),
                                      fromcurrent=True,
                                      mode='immediate')],
                  'label': 'Play',
                  'method': 'animate'}
             ],
-            'pad': {'r': 10, 't': 87},
+            'pad': {'r': 10, 't': 10},
             'showactive': True,
-            'type': 'buttons'
+            'type': 'buttons',
+            'font': dict(color='black')
         }],
-        showlegend=True,
+        showlegend=False,
         # yaxis2=dict(
         #     title='d',
         #     titlefont=dict(
@@ -137,8 +137,12 @@ def execute(args):
         for i in range(l // s + 1):
             #if (i+1)*s <= len(d['x']):
             end = min((i+1)*s, l)
-            columns.append(Column(d['x'][end-1:end], 'x_{}_{}'.format(d['name'], i)))
-            columns.append(Column(d['y'][end-1:end], 'y_{}_{}'.format(d['name'], i)))
+            if args.lines:
+                columns.append(Column(d['x'][:end], 'x_{}_{}'.format(d['name'], i)))
+                columns.append(Column(d['y'][:end], 'y_{}_{}'.format(d['name'], i)))
+            else:
+                columns.append(Column(d['x'][end-1:end], 'x_{}_{}'.format(d['name'], i)))
+                columns.append(Column(d['y'][end-1:end], 'y_{}_{}'.format(d['name'], i)))
 
             len_by_opt[opt] = i
 
@@ -175,7 +179,7 @@ def execute(args):
             xsrc=grid.get_column_reference('x_{}'.format(d['name'])),
             ysrc=grid.get_column_reference('y_{}'.format(d['name'])),
             name=d['name'],
-            mode='markers',
+            mode='markers' if not args.lines else 'lines',
             marker=go.Marker(size=18, symbol=opt_idx)
         ) for opt_idx, d in enumerate(paths.values())
     ]
@@ -191,7 +195,7 @@ def execute(args):
                     xsrc=grid.get_column_reference('x_{}_{}'.format(d['name'], idx)),
                     ysrc=grid.get_column_reference('y_{}_{}'.format(d['name'], idx)),
                     name=d['name'],
-                    mode='markers',
+                    mode='markers' if not args.lines else 'lines',
                     marker=go.Marker(size=18, symbol=opt_idx)
                 )
             )
@@ -212,9 +216,9 @@ def define_loss():
     x = tf.Variable(0.0, dtype=tf.float32)
     cos_fac = 0.025
     cos_freq = 5
-    loss = 1 - x + tf.cos(x * cos_freq * 2 * np.pi) * cos_fac
+    loss = tf.square((x - 0.5) * 2)#1 - x + tf.cos(x * cos_freq * 2 * np.pi) * cos_fac
     x_mesh = np.linspace(0, 1, 100)
-    y = 1 - x_mesh + np.cos(x_mesh * cos_freq * 2 * np.pi) * cos_fac
+    y = np.power((x_mesh - 0.5) * 2, 2)#1 - x_mesh + np.cos(x_mesh * cos_freq * 2 * np.pi) * cos_fac
     return loss, x, x_mesh, y
 
 
@@ -225,6 +229,11 @@ if __name__ == "__main__":
     parser.add_argument("--params", nargs='+', default=[])
     parser.add_argument("--plotd", dest='plotd', action='store_true')
     parser.add_argument("--title", default=None)
+    parser.add_argument("--lines", dest='lines', action='store_true')
+    parser.add_argument("--t_max", default=5000, type=int)
+    parser.add_argument("--lr", default=0.01, type=float)
+    parser.add_argument("--s", default=5, type=int)
+    parser.add_argument("--duration", default=50, type=int)
 
     execute(parser.parse_args())
 
