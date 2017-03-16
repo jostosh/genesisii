@@ -5,13 +5,14 @@ import tensorflow as tf
 class EveOptimizer(object):
 
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999, beta_3=0.999, epsilon=1e-8, decay=0.,
-                 thl=0.1, thu=10., d_clip_lo=0.1, d_clip_hi=10.0):
+                 thl=0.1, thu=10., d_clip_lo=0.1, d_clip_hi=10.0, epsilon_feedback=1e-8):
         self.iterations = tf.Variable(0., dtype=tf.float32, trainable=False)
         self.lr = tf.Variable(lr, dtype=tf.float32, trainable=False)
         self.beta_1 = beta_1
         self.beta_2 = beta_2
         self.beta_3 = beta_3
         self.epsilon = epsilon
+        self.epsilon_feedback = epsilon_feedback
         self.initial_decay = self.decay = decay
         self.thl = tf.constant(thl)
         self.thu = tf.constant(thu)
@@ -43,7 +44,7 @@ class EveOptimizer(object):
         loss_hat = tf.cond(not_first_iter, lambda: loss_hat_prev * loss_change_factor, lambda: loss)
 
         d_den = tf.minimum(loss_hat, loss_hat_prev) #tf.cond(tf.greater(loss_hat, loss_prev), )
-        d_t = (self.beta_3 * self.d) + (1. - self.beta_3) * tf.abs((loss_hat - loss_hat_prev) / d_den)
+        d_t = (self.beta_3 * self.d) + (1. - self.beta_3) * tf.abs((loss_hat - loss_hat_prev) / (d_den + self.epsilon_feedback))
         d_t = tf.clip_by_value(
             tf.cond(not_first_iter, lambda: d_t, lambda: tf.constant(1.)),
             self.d_clip_lo,
