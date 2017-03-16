@@ -100,7 +100,13 @@ def event_arrays_to_np_arrays(event_array):
 
 def obtain_name(hp):
 
-    return hp['optimizer'].capitalize()
+    ret = hp['optimizer'].capitalize()
+
+    #if args.trace_by:
+    for t in args.trace_by:
+        ret += t.capitalize() + '=' + hp[t]
+
+    return ret
 
     '''
     function_by_name = {
@@ -159,7 +165,8 @@ def export_plots():
                 all('cross{}'.format(i) in os.listdir(root + '/../..') for i in range(5)):
             hyper_parameters = {
                 'data': re.search('.*data=(.*?)\/.*', root).group(1),
-                'optimizer': re.search('.*optimizer=(.*?)\/.*', root).group(1)
+                'optimizer': re.search('.*optimizer=(.*?)\/.*', root).group(1),
+                'd_clip_hi': re.search('.*optimizer=(.*?)\/.*', root).group(1)
             }
             if args.data and hyper_parameters['data'] != args.data:
                 continue
@@ -345,7 +352,7 @@ def export_plots():
             layout.title = title
             layout.yaxis.title = ylabel
             fig = go.Figure(data=data, layout=layout)
-            py.plot(fig, filename=fnm + '.html')
+            py.plot(fig, filename=fnm)
 
             plt.xlabel(args.xlabel)
             plt.ylabel(ylabel)
@@ -386,12 +393,12 @@ if __name__ == "__main__":
     parser.add_argument("--interpolate", dest='interpolate', action='store_true')
     parser.add_argument("--animation", dest='animation', action='store_true')
     parser.add_argument("--image_suffix", default="")
-    parser.add_argument("--xlabel", default="Train step")
+    parser.add_argument("--xlabel", default="Epoch")
     parser.add_argument("--ylabel", default=None)
     parser.add_argument("--title", default=None)
     parser.add_argument("--xrange", nargs='+', default=[], type=int)
     parser.add_argument("--yrange", nargs='+', default=[], type=int)
-    parser.add_argument("--trace_by", nargs='+', default=['optimizer'])
+    parser.add_argument("--trace_by", nargs='+', default=[])
     parser.add_argument("--group_by", default='data')
     parser.add_argument("--mode", default='test')
     parser.add_argument("--animation_step", default=100, type=int)
