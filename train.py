@@ -9,6 +9,7 @@ from eve import EveOptimizer
 from genesis import GenesisOptimizer
 from rmseve import RMSEveOptimizer
 from rmsprop import RMSPropOptimizer
+from keras_eve import Eve
 import numpy as np
 from tensorboardutil import make_summary_from_python_var
 from keras.utils import np_utils
@@ -17,7 +18,6 @@ import tflearn.datasets.oxflower17 as oxflower17
 import scipy.misc as misc
 from keras.preprocessing import sequence
 from keras.objectives import categorical_crossentropy
-
 from tqdm import tqdm
 
 def pre_process_image(hp):
@@ -100,7 +100,8 @@ if __name__ == "__main__":
         'eve':      EveOptimizer,
         'genesis':  GenesisOptimizer,
         'rmseve':   RMSEveOptimizer,
-        'rmsprop':  RMSPropOptimizer
+        'rmsprop':  RMSPropOptimizer,
+        'kerasEve': Eve
     }
 
     optimizer = optimizers[hp.optimizer](hp.lr)
@@ -126,7 +127,7 @@ if __name__ == "__main__":
 
     train_step = tf.group(*optimizer.get_updates(var_list, cross_entropy))
 
-    if hp.optimizer in ['eve', 'rmseve']:
+    if hp.optimizer in ['eve', 'rmseve','kerasEve']:
         tf.summary.scalar('d', optimizer.d)
 
     with tf.name_scope('accuracy'):
